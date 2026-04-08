@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wellbin Code — API 配置中心</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <h1>API 配置中心</h1>
+        <p class="lead">
+          读写本机 <code>settings.json</code>，管理多套档案，拉取模型列表并测试连通性。请通过
+          <code>npm run settings:ui</code> 启动本地服务（仅监听 127.0.0.1）。
+        </p>
+      </header>
+
+      <section class="card" id="section-status">
+        <h2>服务状态</h2>
+        <p id="api-offline" class="warn" hidden>
+          未连接到本地 API：请用项目目录执行 <code>node scripts/serve-settings-ui.mjs</code> 或
+          <code>npm run settings:ui</code> 后再刷新本页。
+        </p>
+        <div id="api-online" class="meta-grid" hidden>
+          <div><span class="k">配置文件</span><code id="path-settings"></code></div>
+          <div><span class="k">档案文件</span><code id="path-profiles"></code></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>当前生效配置</h2>
+        <div id="active-summary" class="active-summary">加载中…</div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>已保存的配置档案</h2>
+          <button type="button" class="btn sm" id="btn-refresh-profiles" title="重新加载">刷新</button>
+        </div>
+        <p class="hint small">
+          档案存于 <code>wellbin-model-profiles.json</code>，含密钥，请勿分享。可一键应用到 Wellbin Code。
+        </p>
+        <div class="table-wrap">
+          <table class="data-table" id="profiles-table">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>Base URL</th>
+                <th>模型（H / S / O / Gate）</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="profiles-tbody">
+              <tr><td colspan="5" class="muted">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <nav class="tabs" role="tablist" aria-label="配置类型">
+        <button type="button" class="tab is-active" data-tab="anthropic" role="tab" aria-selected="true">
+          Anthropic Messages API
+        </button>
+        <button type="button" class="tab" data-tab="openai" role="tab" aria-selected="false">
+          OpenAI 兼容（Chat Completions）
+        </button>
+      </nav>
+
+      <section id="panel-anthropic" class="panel is-active" role="tabpanel">
+        <p class="hint">
+          Messages API 兼容网关。认证使用 <code>ANTHROPIC_AUTH_TOKEN</code>（Bearer / x-api-key 测试时会自动尝试）。
+        </p>
+        <form class="form" id="form-anthropic" autocomplete="off">
+          <label class="field">
+            <span class="label">Base URL</span>
+            <input type="url" name="baseUrl" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">API Key</span>
+            <input type="password" name="apiKey" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">Haiku</span>
+            <input type="text" name="haikuModel" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">Sonnet</span>
+            <input type="text" name="sonnetModel" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">Opus</span>
+            <input type="text" name="opusModel" spellcheck="false" />
+          </label>
+        </form>
+      </section>
+
+      <section id="panel-openai" class="panel" role="tabpanel" hidden>
+        <p class="hint">
+          OpenAI Chat Completions 端点；可拉取 <code>/v1/models</code> 并自动填充三套模型。
+          并发闸门会写入 <code>OPENAI_MAX_CONCURRENCY</code>。
+        </p>
+        <form class="form" id="form-openai" autocomplete="off">
+          <label class="field">
+            <span class="label">Base URL</span>
+            <input type="url" name="baseUrl" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">API Key</span>
+            <input type="password" name="apiKey" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">Haiku</span>
+            <input type="text" name="haikuModel" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">Sonnet</span>
+            <input type="text" name="sonnetModel" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">Opus</span>
+            <input type="text" name="opusModel" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="label">本地并发闸门</span>
+            <input
+              type="number"
+              name="maxConcurrency"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              placeholder="留空=默认，自定义网关默认 1，0=不限制"
+            />
+          </label>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>模型发现与测试</h2>
+        <p id="discover-hint" class="hint small"></p>
+        <div class="actions flex-wrap">
+          <button type="button" class="btn primary" id="btn-discover">拉取模型列表（OpenAI）</button>
+          <button type="button" class="btn" id="btn-auto-assign">一键填充三套模型</button>
+          <button type="button" class="btn" id="btn-test-haiku">测试 Haiku</button>
+          <button type="button" class="btn" id="btn-test-sonnet">测试 Sonnet</button>
+          <button type="button" class="btn" id="btn-test-opus">测试 Opus</button>
+          <button type="button" class="btn" id="btn-test-all">测试全部</button>
+        </div>
+        <div id="models-list" class="models-chips" hidden></div>
+        <div id="test-results" class="test-results"></div>
+      </section>
+
+      <div class="actions">
+        <button type="button" class="btn primary lg" id="btn-apply">保存并应用到 Wellbin Code</button>
+        <label class="inline">
+          另存为档案
+          <input type="text" id="save-profile-name" placeholder="档案名称（可选）" />
+        </label>
+        <button type="button" class="btn" id="btn-save-profile">仅保存档案</button>
+        <button type="button" class="btn" id="btn-copy-json">复制 JSON</button>
+        <button type="button" class="btn" id="btn-download">下载 JSON</button>
+      </div>
+
+      <section class="preview card">
+        <div class="preview-head">
+          <h2>合并预览</h2>
+        </div>
+        <pre class="code" id="preview-json"></pre>
+      </section>
+
+      <footer class="footer">
+        <p>
+          与 <code>ConsoleOAuthFlow</code> 写入字段一致。仅本机访问；档案与 settings 均含密钥，请妥善保管。
+        </p>
+      </footer>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
